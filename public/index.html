@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MHSD — Private Network</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--bg:#0a0a0a;--bg2:#111;--card:#161616;--card2:#1c1c1c;--border:rgba(255,214,0,0.08);--border2:rgba(255,214,0,0.18);--accent:#FFD600;--accent2:#FFA000;--danger:#ff4444;--text:#e0e0e0;--dim:#999;--muted:#555}
+*{margin:0;padding:0;box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--muted);border-radius:9px}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+.mono{font-family:'JetBrains Mono',monospace}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
+#accessGate{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.gate-box{width:380px;max-width:90vw;padding:40px 32px;background:var(--card);border:1px solid var(--border);border-radius:8px}
+.gate-box h1{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--accent);letter-spacing:4px;text-align:center}
+.gate-box p{color:var(--muted);font-size:12px;text-align:center;margin-top:6px;letter-spacing:1px}
+.g-input{width:100%;padding:13px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border .2s;margin-top:14px}
+.g-input:focus{border-color:var(--accent2)}
+.g-input::placeholder{color:var(--muted)}
+.g-btn{width:100%;padding:13px;margin-top:18px;background:var(--accent);color:#000;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;letter-spacing:2px;border:none;border-radius:6px;cursor:pointer;transition:all .2s}
+.g-btn:hover{background:#ffe04a;transform:translateY(-1px)}
+.g-err{color:var(--danger);font-size:12px;text-align:center;min-height:18px;margin-top:10px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+#profileSetup{display:none;position:fixed;inset:0;z-index:999;background:var(--bg)}
+.setup-box{max-width:420px;width:90vw;margin:auto;padding:36px 28px;background:var(--card);border:1px solid var(--border);border-radius:8px;position:relative;top:50%;transform:translateY(-50%)}
+.setup-box h2{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);letter-spacing:2px;text-align:center;margin-bottom:20px}
+#mainApp{display:none;position:relative;z-index:1;height:100vh}
+.sb{position:fixed;left:0;top:0;width:64px;height:100vh;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:16px 0;z-index:50}
+.sb-logo{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--accent);margin-bottom:28px;cursor:pointer;letter-spacing:1px}
+.sb-item{width:100%;display:flex;align-items:center;justify-content:center;padding:12px 0;color:var(--muted);cursor:pointer;transition:color .15s;font-size:16px}
+.sb-item:hover{color:var(--dim)}
+.sb-item.active{color:var(--accent)}
+.sb-item.active::before{content:'';position:absolute;left:0;width:2px;height:24px;background:var(--accent);border-radius:0 2px 2px 0}
+.sb-item{position:relative}
+.sb-foot{margin-top:auto;display:flex;flex-direction:column;gap:2px;width:100%}
+.topbar{position:fixed;top:0;left:64px;right:0;height:52px;background:rgba(10,10,10,0.85);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:40;backdrop-filter:blur(10px)}
+.content{position:fixed;top:52px;left:64px;right:0;bottom:0;overflow-y:auto;padding:24px}
+.page{display:none;animation:fadeUp .3s ease}
+.page.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px}
+.sv{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700}
+.sl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:600}
+.b-y{background:rgba(255,214,0,0.1);color:var(--accent);border:1px solid rgba(255,214,0,0.15)}
+.b-g{background:rgba(0,200,83,0.1);color:#00c853;border:1px solid rgba(0,200,83,0.15)}
+.b-r{background:rgba(255,68,68,0.1);color:var(--danger);border:1px solid rgba(255,68,68,0.15)}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px 0;display:flex;flex-direction:column;gap:10px}
+.chat-b{max-width:72%;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.5}
+.chat-b.me{align-self:flex-end;background:rgba(255,214,0,0.08);border:1px solid rgba(255,214,0,0.12);border-bottom-right-radius:2px}
+.chat-b.them{align-self:flex-start;background:var(--card2);border:1px solid var(--border);border-bottom-left-radius:2px}
+.chat-in{flex:1;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
+.chat-in:focus{border-color:var(--accent2)}
+.send-b{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:13px;transition:all .15s;flex-shrink:0}
+.send-b:hover{background:#ffe04a}
+.typing-c{display:inline-block;width:2px;height:14px;background:var(--accent);margin-left:2px;animation:blink 1s step-end infinite;vertical-align:text-bottom}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.k-item{padding:14px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:border .15s;background:var(--card)}
+.k-item:hover{border-color:var(--border2)}
+.ev-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:all .2s;background:var(--card)}
+.ev-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.ev-img{height:120px;background-size:cover;background-position:center;position:relative}
+.ev-img::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 30%,var(--card))}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.avatar-lg{width:48px;height:48px;font-size:16px}
+.pbar{height:5px;background:rgba(255,214,0,0.06);border-radius:3px;overflow:hidden}
+.pfill{height:100%;border-radius:3px;transition:width .6s ease}
+.stag{padding:3px 8px;font-size:10px;border-radius:3px;background:rgba(255,214,0,0.06);color:var(--dim);border:1px solid var(--border)}
+.toast-c{position:fixed;top:62px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:6px}
+.toast{padding:12px 16px;border-radius:6px;font-size:12px;animation:tin .25s ease;max-width:320px;border:1px solid var(--border);background:var(--card)}
+.toast.ok{border-left:3px solid #00c853;color:#00c853}
+.toast.err{border-left:3px solid var(--danger);color:var(--danger)}
+.toast.inf{border-left:3px solid var(--accent);color:var(--accent)}
+@keyframes tin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes tout{from{opacity:1}to{opacity:0;transform:translateX(30px)}}
+.modal-o{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeUp .15s}
+.modal-b{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:28px;max-width:480px;width:90vw;max-height:80vh;overflow-y:auto}
+.inv-card{padding:14px;border:1px solid var(--border2);border-radius:6px;background:rgba(255,214,0,0.02);margin-bottom:10px}
+.lb-r{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.lb-r:last-child{border-bottom:none}
+.mem-c{padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--card);transition:border .15s}
+.mem-c:hover{border-color:var(--border2)}
+.refresh-spin{animation:spin 1s linear}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@media(max-width:768px){.sb{width:50px}.topbar{left:50px}.content{left:50px;padding:14px}.sv{font-size:20px}}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="toast-c" id="toastC"></div>
+
+<!-- GATE -->
+<div id="accessGate">
+<div class="gate-box">
+<h1>MHSD</h1>
+<p>PRIVATE NETWORK</p>
+<input class="g-input" id="gUser" placeholder="Username" autocomplete="off" spellcheck="false">
+<input class="g-input" id="gCode" placeholder="Access Code" type="password" autocomplete="off" spellcheck="false">
+<button class="g-btn" onclick="tryLogin()">ENTER</button>
+<div class="g-err" id="gErr"></div>
+</div>
+</div>
+
+<!-- PROFILE SETUP -->
+<div id="profileSetup">
+<div class="setup-box">
+<h2>SETUP PROFILE</h2>
+<div style="display:flex;flex-direction:column;gap:12px">
+<input class="g-input" id="sName" placeholder="Display Name" style="margin-top:0">
+<input class="g-input" id="sSkills" placeholder="Skills (comma separated)">
+<div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">Pick color</label><div style="display:flex;gap:8px;flex-wrap:wrap" id="cPick"></div></div>
+<button class="g-btn" onclick="finishSetup()">JOIN MHSD</button>
+</div>
+</div>
+</div>
+
+<!-- APP -->
+<div id="mainApp">
+<nav class="sb" id="sb">
+<div class="sb-logo">M</div>
+<div class="sb-item active" data-p="dashboard" onclick="go('dashboard')" title="Dashboard"><i class="fa-solid fa-grid-2"></i></div>
+<div class="sb-item" data-p="growth" onclick="go('growth')" title="Growth"><i class="fa-solid fa-chart-line"></i></div>
+<div class="sb-item" data-p="knowledge" onclick="go('knowledge')" title="Knowledge"><i class="fa-solid fa-book-open"></i></div>
+<div class="sb-item" data-p="chat" onclick="go('chat')" title="Chat"><i class="fa-solid fa-message"></i></div>
+<div class="sb-item" data-p="events" onclick="go('events')" title="Events"><i class="fa-solid fa-calendar"></i></div>
+<div class="sb-item" data-p="ai" onclick="go('ai')" title="AI"><i class="fa-solid fa-robot"></i></div>
+<div class="sb-item" data-p="network" onclick="go('network')" title="Network"><i class="fa-solid fa-users"></i></div>
+<div class="sb-foot">
+<div class="sb-item" data-p="admin" onclick="go('admin')" title="Admin"><i class="fa-solid fa-lock"></i></div>
+<div class="sb-item" onclick="doLogout()" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></div>
+</div>
+</nav>
+
+<header class="topbar">
+<div style="display:flex;align-items:center;gap:14px">
+<span class="mono" style="font-size:11px;letter-spacing:2px;color:var(--muted)" id="tbTitle">DASHBOARD</span>
+<span class="dot"></span>
+</div>
+<div style="display:flex;align-items:center;gap:10px">
+<div class="avatar" id="tbAv" style="background:rgba(255,214,0,0.12);color:var(--accent)"></div>
+<div><div style="font-size:12px;font-weight:600" id="tbName"></div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px" id="tbRole"></div></div>
+</div>
+</header>
+
+<main class="content" id="cArea">
+<!-- DASHBOARD -->
+<section class="page active" id="pg-dashboard">
+<div style="margin-bottom:24px"><h1 style="font-size:18px;font-weight:700">Hey, <span style="color:var(--accent)" id="dName"></span></h1><p style="color:var(--muted);font-size:13px;margin-top:4px" id="dSub"></p></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px">
+<div class="card"><div class="sv" style="color:var(--accent)" id="sLv">1</div><div class="sl">Level</div></div>
+<div class="card"><div class="sv" style="color:#00c853" id="sXp">0</div><div class="sl">XP</div></div>
+<div class="card"><div class="sv" style="color:var(--accent2)" id="sMem">1</div><div class="sl">Members</div></div>
+<div class="card"><div class="sv" style="color:var(--danger)" id="sMsg">0</div><div class="sl">Messages</div></div>
+</div>
+<div class="card" style="margin-bottom:16px"><div style="font-size:12px;font-weight:600;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Activity</div><div id="actFeed" style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto"></div></div>
+<div class="card" style="border-color:rgba(255,214,0,0.12)"><div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><i class="fa-solid fa-bolt" style="color:var(--accent);font-size:12px"></i><span style="font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px">AI Insight</span></div><p id="aiIns" style="font-size:13px;line-height:1.6;color:var(--dim)"></p></div>
+</section>
+
+<!-- GROWTH -->
+<section class="page" id="pg-growth">
+<h1 style="font-size:18px;font-weight:700;margin-bottom:20px">Growth</h1>
+<div class="card" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:12px;color:var(--muted)">Level <span class="mono" style="color:var(--accent);font-weight:700" id="gLv">1</span></span><span style="font-size:12px;color:var(--muted)" id="gXpT">0 / 200 XP</span></div><div class="pbar"><div class="pfill" id="gXpB" style="width:0%;background:var(--accent)"></div></div></div>
+<div class="card" style="margin-bottom:16px"><div style="font-size:12px;font-weight:600;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Badges</div><div id="badgeG" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div></div>
+<div class="card"><div style="font-size:12px;font-weight:600;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Leaderboard</div><div id="lb"></div></div>
+</section>
+
+<!-- KNOWLEDGE -->
+<section class="page" id="pg-knowledge">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+<h1 style="font-size:18px;font-weight:700">Knowledge Hub</h1>
+<div style="display:flex;gap:8px"><input id="kSearch" class="g-input" placeholder="Search..." style="width:200px;padding:10px 14px;font-size:12px;margin-top:0" oninput="renderK()"><button style="padding:10px 16px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="showUpload()"><i class="fa-solid fa-plus" style="margin-right:4px"></i>Add</button></div>
+</div>
+<div id="kList"></div>
+</section>
+
+<!-- CHAT -->
+<section class="page" id="pg-chat">
+<div style="display:flex;height:calc(100vh - 100px);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<div style="width:160px;background:var(--card);border-right:1px solid var(--border);padding:12px 0;flex-shrink:0;overflow-y:auto">
+<div style="padding:0 12px 10px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Channels</div>
+<div id="chList"></div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;background:var(--bg)">
+<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px"><span style="color:var(--accent);font-size:14px;font-weight:600" id="chTitle">#general</span></div>
+<div class="chat-msgs" id="chatMsgs"></div>
+<div style="padding:12px;display:flex;gap:8px;border-top:1px solid var(--border)">
+<input class="chat-in" id="chatIn" placeholder="Message..." onkeydown="if(event.key==='Enter')sendMsg()">
+<button class="send-b" onclick="sendMsg()"><i class="fa-solid fa-paper-plane"></i></button>
+</div>
+</div>
+</div>
+</section>
+
+<!-- EVENTS -->
+<section class="page" id="pg-events">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+<h1 style="font-size:18px;font-weight:700">Hackathons & Events</h1>
+<div style="display:flex;align-items:center;gap:8px"><button onclick="refreshEvents()" style="padding:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--dim);font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px" id="refBtn"><i class="fa-solid fa-rotate" id="refIcon"></i>Refresh</button><span style="font-size:10px;color:var(--muted)" id="evTime"></span></div>
+</div>
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;padding:10px 14px;background:rgba(255,214,0,0.04);border:1px solid var(--border);border-radius:6px">
+<i class="fa-solid fa-location-dot" style="color:var(--accent);font-size:12px"></i>
+<span style="font-size:12px;color:var(--dim)">Ahmedabad, Mehsana & nearby — within 60km</span>
+</div>
+<div id="evList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px"></div>
+</section>
+
+<!-- AI -->
+<section class="page" id="pg-ai">
+<div style="display:flex;flex-direction:column;height:calc(100vh - 100px);border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg)">
+<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--card)">
+<div style="width:28px;height:28px;border-radius:50%;background:rgba(255,214,0,0.12);display:flex;align-items:center;justify-content:center"><i class="fa-solid fa-robot" style="color:var(--accent);font-size:12px"></i></div>
+<div><div style="font-size:13px;font-weight:600">MHSD AI</div><div style="font-size:10px;color:#00c853">Online</div></div>
+</div>
+<div class="chat-msgs" id="aiMsgs" style="padding:16px"></div>
+<div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border)">
+<button class="b-y" style="cursor:pointer;font-family:inherit;border:1px solid rgba(255,214,0,0.15)" onclick="aiQ('Give me a coding challenge')">Challenge</button>
+<button class="b-g" style="cursor:pointer;font-family:inherit" onclick="aiQ('Suggest a learning path')">Learning Path</button>
+<button style="padding:3px 10px;font-size:10px;border-radius:4px;background:rgba(255,160,0,0.1);color:var(--accent2);border:1px solid rgba(255,160,0,0.15);cursor:pointer;font-family:inherit" onclick="aiQ('Review my progress')">Progress</button>
+</div>
+<div style="padding:12px;display:flex;gap:8px;border-top:1px solid var(--border)">
+<input class="chat-in" id="aiIn" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')sendAI()">
+<button class="send-b" onclick="sendAI()"><i class="fa-solid fa-paper-plane"></i></button>
+</div>
+</div>
+</section>
+
+<!-- NETWORK -->
+<section class="page" id="pg-network">
+<h1 style="font-size:18px;font-weight:700;margin-bottom:20px">Members</h1>
+<div id="memGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
+</section>
+
+<!-- ADMIN -->
+<section class="page" id="pg-admin">
+<h1 style="font-size:18px;font-weight:700;margin-bottom:20px">Admin</h1>
+<div class="card" style="margin-bottom:16px;border-color:rgba(255,214,0,0.12)">
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:14px"><i class="fa-solid fa-user-plus" style="color:var(--accent);font-size:12px"></i><span style="font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px">Invite Friend</span></div>
+<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><input class="g-input" id="invUser" placeholder="Username" style="flex:1;min-width:140px;padding:10px 14px;font-size:12px;margin-top:0"><button style="padding:10px 20px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap" onclick="genInvite()">Generate</button></div>
+<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Set username, share both username + code with your friend.</div>
+<div id="invList"></div>
+</div>
+<div class="card" style="margin-bottom:16px"><div style="font-size:12px;font-weight:600;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Members</div><div id="admMem"></div></div>
+<div class="card"><div style="font-size:12px;font-weight:600;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Security Log</div><div id="secLog" style="display:flex;flex-direction:column;gap:6px;max-height:250px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px"></div></div>
+</section>
+</main>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-o" id="upModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+<div class="modal-b"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-size:15px;font-weight:600">Upload</span><i class="fa-solid fa-xmark" style="cursor:pointer;color:var(--muted)" onclick="document.getElementById('upModal').style.display='none'"></i></div>
+<input class="g-input" id="upTitle" placeholder="Title" style="margin-top:0"><textarea class="g-input" id="upDesc" placeholder="Description" rows="3" style="resize:vertical"></textarea>
+<button class="g-btn" style="margin-top:12px" onclick="doUpload()">Upload</button></div>
+</div>
+
+<script>
+    const socket = io("https://mhsd.onrender.com/");
+/* ============ STORAGE ============ */
+var D={g:function(k,d){try{var v=localStorage.getItem('mhsd_'+k);return v?JSON.parse(v):d}catch(e){return d}},s:function(k,v){try{localStorage.setItem('mhsd_'+k,JSON.stringify(v))}catch(e){}}};
+var ADMIN={id:'admin',username:'admin',name:'Admin',role:'admin',code:'MHSD-7749',color:'#FFD600',skills:[],level:1,xp:0,streak:0,badges:['fa-shield'],done:true,at:Date.now()};
+function gU(){return D.g('users',[ADMIN])}
+function sU(u){D.s('users',u)}
+function gM(){return D.g('msgs',{general:[]})}
+function sM(m){D.s('msgs',m)}
+function gK(){return D.g('know',[])}
+function sK(k){D.s('know',k)}
+function gI(){return D.g('inv',[])}
+function sI(i){D.s('inv',i)}
+function gL(){return D.g('log',[])}
+function sL(l){D.s('log',l)}
+function aL(lv,m){var l=gL();l.unshift({t:new Date().toTimeString().slice(0,8),lv:lv,m:m});if(l.length>50)l.length=50;sL(l)}
+
+var COLORS=['#FFD600','#FFA000','#00c853','#ff4444','#e040fb','#00bcd4','#ff6e40','#8bc34a','#ffd740','#ff5252'];
+var CHS=['general','coding','projects','resources'];
+var ST={u:null,pg:'dashboard',ch:'general',sc:'#FFD600'};
+var BADGES=[
+{ic:'fa-fire',n:'Streak 3',d:'3-day streak',c:'#ff6e40'},
+{ic:'fa-code',n:'Chatter',d:'Send 50 msgs',c:'#FFD600'},
+{ic:'fa-trophy',n:'Level 5',d:'Reach level 5',c:'#FFA000'},
+{ic:'fa-book',n:'Sharer',d:'Upload 5 items',c:'#00bcd4'},
+{ic:'fa-star',n:'500 XP',d:'Earn 500 XP',c:'#8bc34a'},
+{ic:'fa-rocket',n:'Streak 10',d:'10-day streak',c:'#ff4444'},
+{ic:'fa-shield',n:'Trusted',d:'Admin approved',c:'#FFD600'},
+{ic:'fa-users',n:'Social',d:'Chat in 4 channels',c:'#e040fb'}
+];
+
+/* ============ EVENTS DATA - Ahmedabad/Mehsana ============ */
+var BASE_EVENTS=[
+{type:'hackathon',title:'Ahmedabad Hack 2025',date:'Feb 8-9',loc:'GIIC, SG Highway, Ahmedabad',dist:'0 km',desc:'24-hour hackathon. AI/ML, Web3, FinTech tracks. Prize pool 5 lakhs.',img:'https://picsum.photos/seed/ahd1/600/300.jpg',rel:96,tags:['AI/ML','Web3','FinTech']},
+{type:'hackathon',title:'HackMehsana 3.0',date:'Feb 15-16',loc:'Mehsana IT Park, Mehsana',dist:'55 km',desc:'48-hour build sprint. Open theme. Top 3 teams get internship offers.',img:'https://picsum.photos/seed/mhs1/600/300.jpg',rel:91,tags:['Open','Internship']},
+{type:'cp',title:'Codeforces Gujarat Round',date:'Jan 28',loc:'Online (Gujarat Chapter)',dist:'--',desc:'Rated contest for Gujarat coders. Div2 + Div3. Prizes for top Gujarat rankers.',img:'https://picsum.photos/seed/cf1/600/300.jpg',rel:88,tags:['Algorithms','Rated']},
+{type:'tech',title:'DevFest Ahmedabad 2025',date:'Mar 1-2',loc:'Tagore Hall, Ahmedabad',dist:'0 km',desc:'GDG Ahmedabad annual fest. Talks on Flutter, Firebase, Cloud, AI.',img:'https://picsum.photos/seed/dev1/600/300.jpg',rel:85,tags:['Flutter','Cloud','AI']},
+{type:'hackathon',title:'Gandhinagar Buildathon',date:'Feb 22-23',loc:'IIT Gandhinagar',dist:'25 km',desc:'Smart city themed hackathon. IoT, data analytics, civic tech.',img:'https://picsum.photos/seed/gnd1/600/300.jpg',rel:82,tags:['IoT','Smart City','Data']},
+{type:'cp',title:'LeetCode Gujarat Meetup Contest',date:'Feb 5',loc:'Online',dist:'--',desc:'Weekly contest by Gujarat LC community. 4 problems, 90 minutes.',img:'https://picsum.photos/seed/lc1/600/300.jpg',rel:79,tags:['Algorithms']},
+{type:'tech',title:'AI/ML Workshop Ahmedabad',date:'Feb 12',loc:'GU Campus, Ahmedabad',dist:'0 km',desc:'Hands-on workshop: build a RAG pipeline from scratch. Limited seats.',img:'https://picsum.photos/seed/ai1/600/300.jpg',rel:76,tags:['AI','ML','RAG']},
+{type:'hackathon',title:'Vishwakarma Hack',date:'Mar 8-9',loc:'Vishwakarma Govt College, Ahmedabad',dist:'5 km',desc:'Government-hosted hackathon for college students. Education tech focus.',img:'https://picsum.photos/seed/vis1/600/300.jpg',rel:73,tags:['EdTech','Students']},
+{type:'tech',title:'Rust Ahmedabad Meetup',date:'Feb 19',loc:'CoLab, Ahmedabad',dist:'0 km',desc:'Monthly Rust meetup. Talks on async Rust, WASM, and systems programming.',img:'https://picsum.photos/seed/rust1/600/300.jpg',rel:70,tags:['Rust','WASM','Systems']},
+{type:'cp',title:'CodeChef Starters - Gujarat',date:'Feb 1',loc:'Online',dist:'--',desc:'Special CodeChef starters with Gujarat ranking leaderboard.',img:'https://picsum.photos/seed/cc1/600/300.jpg',rel:68,tags:['Algorithms','Competitive']},
+{type:'hackathon',title:'FinTech Hack Ahmedabad',date:'Mar 15-16',loc:'GIFT City, Gandhinagar',dist:'30 km',desc:'FinTech focused hackathon at GIFT City. Payments, lending, blockchain.',img:'https://picsum.photos/seed/fin1/600/300.jpg',rel:65,tags:['FinTech','Blockchain']},
+{type:'tech',title:'Cloud Computing Summit',date:'Mar 5',loc:'Nirma University, Ahmedabad',dist:'12 km',desc:'One-day summit on AWS, GCP, Azure. Hands-on labs included.',img:'https://picsum.photos/seed/cloud1/600/300.jpg',rel:62,tags:['Cloud','AWS','GCP']}
+];
+var EXTRA_EVENTS=[
+{type:'hackathon',title:'Smart Gujarat Hackathon',date:'Mar 22-23',loc:'GCERT, Gandhinagar',dist:'28 km',desc:'Government of Gujarat initiative. Solve real governance problems with tech.',img:'https://picsum.photos/seed/sgh1/600/300.jpg',rel:90,tags:['GovTech','Open Data']},
+{type:'tech',title:'Flutter Festival Ahmedabad',date:'Feb 26',loc:'Revenue Garden, Ahmedabad',dist:'0 km',desc:'GDG Flutter Festival. Build apps, win prizes, network with devs.',img:'https://picsum.photos/seed/fl1/600/300.jpg',rel:85,tags:['Flutter','Mobile','Dart']},
+{type:'cp',title:'HackerRank Gujarat Challenge',date:'Mar 10',loc:'Online',dist:'--',desc:'Company-sponsored challenge. Top performers get interview calls.',img:'https://picsum.photos/seed/hr1/600/300.jpg',rel:80,tags:['Algorithms','Interviews']},
+{type:'hackathon',title:'Mehsana University Hack',date:'Apr 5-6',loc:'Hemchandracharya Uni, Mehsana',dist:'55 km',desc:'Inter-college hackathon. Web and mobile app development.',img:'https://picsum.photos/seed/muh1/600/300.jpg',rel:75,tags:['Web','Mobile','Students']}
+];
+var currentEvents=[];
+var lastRefresh=0;
+
+function buildEvents(){
+currentEvents=BASE_EVENTS.slice();
+var hour=new Date().getHours();
+/* Rotate a few events based on time to simulate refresh */
+if(hour>=6)currentEvents.push(EXTRA_EVENTS[0]);
+if(hour>=10)currentEvents.push(EXTRA_EVENTS[1]);
+if(hour>=14)currentEvents.push(EXTRA_EVENTS[2]);
+if(hour>=18)currentEvents.push(EXTRA_EVENTS[3]);
+currentEvents.sort(function(a,b){return b.rel-a.rel});
+lastRefresh=Date.now();
+}
+
+/* ============ LOGIN ============ */
+function tryLogin(){
+var un=document.getElementById('gUser').value.trim().toLowerCase();
+var co=document.getElementById('gCode').value.trim();
+var er=document.getElementById('gErr');
+if(!un||!co){er.textContent='Fill both fields';return}
+var users=gU(),found=null;
+for(var i=0;i<users.length;i++){if(users[i].username===un&&users[i].code===co){found=users[i];break}}
+if(!found){
+var inv=gI();
+for(var i=0;i<inv.length;i++){
+if(inv[i].username===un&&inv[i].code===co){
+found={id:un,username:un,name:un,role:'member',code:co,color:COLORS[Math.floor(Math.random()*COLORS.length)],skills:[],level:1,xp:0,streak:0,badges:['fa-shield'],done:false,at:Date.now()};
+users.push(found);sU(users);inv.splice(i,1);sI(inv);aL('INFO',un+' joined via invite');break;
+}}
+}
+if(found){
+ST.u=found;er.textContent='';
+document.getElementById('accessGate').style.opacity='0';
+document.getElementById('accessGate').style.transition='opacity .5s';
+setTimeout(function(){
+document.getElementById('accessGate').style.display='none';
+if(!found.done)showSetup(found);
+else{document.getElementById('mainApp').style.display='block';initApp()}
+},500);
+}else{
+er.textContent='ACCESS DENIED';
+var bx=document.querySelector('.gate-box');bx.style.animation='none';void bx.offsetWidth;bx.style.animation='shake .4s ease';
+aL('WARN','Failed login: '+un);
+}
+}
+document.getElementById('gCode').addEventListener('keydown',function(e){if(e.key==='Enter')tryLogin()});
+document.getElementById('gUser').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('gCode').focus()});
+
+/* ============ SETUP ============ */
+function showSetup(u){
+document.getElementById('profileSetup').style.display='block';
+ST.sc=u.color||'#FFD600';
+document.getElementById('sName').value='';
+document.getElementById('sSkills').value='';
+var h='';for(var i=0;i<COLORS.length;i++){var c=COLORS[i],s=c===ST.sc?'border:2px solid #fff;transform:scale(1.15)':'border:2px solid transparent';
+h+='<div onclick="pickC(\''+c+'\')" style="width:30px;height:30px;border-radius:50%;background:'+c+';cursor:pointer;transition:all .15s;'+s+'" data-c="'+c+'"></div>'}
+document.getElementById('cPick').innerHTML=h;
+}
+function pickC(c){ST.sc=c;var els=document.querySelectorAll('#cPick div');for(var i=0;i<els.length;i++){els[i].style.border=els[i].getAttribute('data-c')===c?'2px solid #fff':'2px solid transparent';els[i].style.transform=els[i].getAttribute('data-c')===c?'scale(1.15)':'scale(1)'}}
+function finishSetup(){
+var n=document.getElementById('sName').value.trim();if(!n){toast('Enter a name','err');return}
+var sk=document.getElementById('sSkills').value.trim();var skills=sk?sk.split(',').map(function(s){return s.trim()}).filter(function(s){return s}):[];
+var users=gU();for(var i=0;i<users.length;i++){if(users[i].id===ST.u.id){users[i].name=n;users[i].color=ST.sc;users[i].skills=skills;users[i].done=true;break}}
+sU(users);ST.u.name=n;ST.u.color=ST.sc;ST.u.skills=skills;ST.u.done=true;
+document.getElementById('profileSetup').style.display='none';document.getElementById('mainApp').style.display='block';
+aL('INFO',n+' completed setup');initApp();toast('Welcome to MHSD, '+n+'!','ok');
+}
+
+/* ============ INIT ============ */
+function initApp(){
+var u=ST.u;
+document.getElementById('tbAv').textContent=u.name.charAt(0).toUpperCase();
+document.getElementById('tbAv').style.background=u.color+'1a';document.getElementById('tbAv').style.color=u.color;
+document.getElementById('tbName').textContent=u.name;document.getElementById('tbRole').textContent=u.role;
+document.getElementById('dName').textContent=u.name;
+document.getElementById('dSub').textContent='Level '+u.level+' \u2014 '+u.xp+' XP \u2014 '+u.skills.length+' skills';
+document.getElementById('sLv').textContent=u.level;document.getElementById('sXp').textContent=u.xp;
+document.getElementById('sMem').textContent=gU().length;
+var msgs=gM();var mc=0;for(var k in msgs)mc+=msgs[k].length;document.getElementById('sMsg').textContent=mc;
+var need=u.level*200,prev=(u.level-1)*200,pct=u.level===1?Math.min(100,(u.xp/200)*100):Math.min(100,((u.xp-prev)/(need-prev))*100);
+document.getElementById('gLv').textContent=u.level;document.getElementById('gXpT').textContent=u.xp+' / '+need+' XP';document.getElementById('gXpB').style.width=pct+'%';
+document.querySelector('[data-p="admin"]').style.display=u.role==='admin'?'flex':'none';
+buildEvents();renderBadges();renderLB();renderCh();renderChat();renderK();renderEv();renderAI();renderAct();renderAIIns();renderNet();renderAdm();
+}
+
+/* ============ NAV ============ */
+function go(p){
+ST.pg=p;var ps=document.querySelectorAll('.page');for(var i=0;i<ps.length;i++)ps[i].classList.remove('active');
+var el=document.getElementById('pg-'+p);if(el)el.classList.add('active');
+var ns=document.querySelectorAll('.sb-item');for(var i=0;i<ns.length;i++)ns[i].classList.remove('active');
+var ne=document.querySelector('[data-p="'+p+'"]');if(ne)ne.classList.add('active');
+var ts={dashboard:'DASHBOARD',growth:'GROWTH',knowledge:'KNOWLEDGE',chat:'CHAT',events:'EVENTS',ai:'AI MENTOR',network:'MEMBERS',admin:'ADMIN'};
+document.getElementById('tbTitle').textContent=ts[p]||p.toUpperCase();
+document.getElementById('cArea').scrollTop=0;
+if(p==='admin')renderAdm();if(p==='network')renderNet();if(p==='knowledge')renderK();
+if(p==='growth'){renderBadges();renderLB()}if(p==='events')renderEv();if(p==='dashboard'){renderAct();renderAIIns();var msgs=gM();var mc=0;for(var k in msgs)mc+=msgs[k].length;document.getElementById('sMsg').textContent=mc;document.getElementById('sMem').textContent=gU().length}
+}
+function doLogout(){document.getElementById('mainApp').style.display='none';document.getElementById('accessGate').style.display='flex';document.getElementById('accessGate').style.opacity='1';document.getElementById('gUser').value='';document.getElementById('gCode').value='';ST.u=null}
+
+/* ============ XP ============ */
+function addXP(n){
+if(!ST.u)return;var users=gU();for(var i=0;i<users.length;i++){if(users[i].id===ST.u.id){users[i].xp+=n;var need=users[i].level*200;while(users[i].xp>=need){users[i].xp-=need;users[i].level++;need=users[i].level*200;toast('Level Up! Now Level '+users[i].level,'ok');aL('INFO',users[i].name+' reached level '+users[i].level)}ST.u.xp=users[i].xp;ST.u.level=users[i].level;break}}sU(users);
+document.getElementById('sLv').textContent=ST.u.level;document.getElementById('sXp').textContent=ST.u.xp;
+var need=ST.u.level*200,prev=(ST.u.level-1)*200,pct=ST.u.level===1?Math.min(100,(ST.u.xp/200)*100):Math.min(100,((ST.u.xp-prev)/(need-prev))*100);
+document.getElementById('gLv').textContent=ST.u.level;document.getElementById('gXpT').textContent=ST.u.xp+' / '+need+' XP';document.getElementById('gXpB').style.width=pct+'%';
+}
+
+/* ============ BADGES ============ */
+function renderBadges(){
+var ub=ST.u.badges||[];var h='';for(var i=0;i<BADGES.length;i++){var b=BADGES[i],e=ub.indexOf(b.ic)!==-1;h+='<div style="text-align:center;padding:12px 6px;border:1px solid var(--border);border-radius:6px;opacity:'+(e?'1':'0.25')+'">';h+='<div style="width:30px;height:30px;border-radius:50%;background:'+b.c+'15;display:flex;align-items:center;justify-content:center;margin:0 auto 6px"><i class="fa-solid '+b.ic+'" style="color:'+b.c+';font-size:12px"></i></div>';h+='<div style="font-size:10px;font-weight:600;color:var(--dim)">'+b.n+'</div></div>'}document.getElementById('badgeG').innerHTML=h}
+
+/* ============ LEADERBOARD ============ */
+function renderLB(){
+var users=gU().slice().sort(function(a,b){return b.xp-a.xp});var rc=['#FFD600','#bbb','#cd7f32','#555'];var h='';
+for(var i=0;i<users.length;i++){var u=users[i];if(!u.done)continue;var isU=u.id===ST.u.id;
+h+='<div class="lb-r" style="'+(isU?'background:rgba(255,214,0,0.03)':'')+'"><div class="mono" style="font-weight:700;font-size:14px;color:'+(i<3?rc[i]:rc[3])+';width:24px;text-align:center">'+(i+1)+'</div>';
+h+='<div class="avatar" style="background:'+u.color+'1a;color:'+u.color+'">'+u.name.charAt(0).toUpperCase()+'</div>';
+h+='<div style="flex:1"><div style="font-size:13px;font-weight:600">'+u.name+(isU?' <span style="font-size:10px;color:var(--accent)">(you)</span>':'')+'</div><div style="font-size:11px;color:var(--muted)">Level '+u.level+'</div></div>';
+h+='<div class="mono" style="font-size:13px;color:var(--dim)">'+u.xp+' XP</div></div>'}
+if(!h)h='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">No members yet</div>';
+document.getElementById('lb').innerHTML=h}
+
+/* ============ CHAT ============ */
+function renderCh(){
+var h='';for(var i=0;i<CHS.length;i++){var c=CHS[i],a=ST.ch===c;
+h+='<div style="padding:8px 12px;cursor:pointer;font-size:13px;color:'+(a?'var(--accent)':'var(--dim)')+';background:'+(a?'rgba(255,214,0,0.04)':'transparent')+';border-left:2px solid '+(a?'var(--accent)':'transparent')+'" onclick="swCh(\''+c+'\')"># '+c+'</div>'}
+document.getElementById('chList').innerHTML=h}
+function swCh(c){ST.ch=c;document.getElementById('chTitle').textContent='#'+c;renderCh();renderChat()}
+
+function renderChat(){
+var msgs=gM();var cm=msgs[ST.ch]||[];var users=gU();var con=document.getElementById('chatMsgs');var h='';
+for(var i=0;i<cm.length;i++){var m=cm[i];var me=m.uid===ST.u.id;var an='?',ac='#555';
+for(var j=0;j<users.length;j++){if(users[j].id===m.uid){an=users[j].name;ac=users[j].color;break}}
+var nh=!me?'<div style="font-size:10px;font-weight:600;color:'+ac+';margin-bottom:3px">'+esc(an)+'</div>':'';
+h+='<div class="chat-b '+(me?'me':'them')+'">'+nh+esc(m.text)+'<div style="font-size:9px;color:var(--muted);margin-top:3px;text-align:'+(me?'right':'left')+'">'+m.time+'</div></div>'}
+if(!cm.length)h='<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">No messages yet. Say something!</div>';
+con.innerHTML=h;con.scrollTop=con.scrollHeight}
+
+function sendMsg(){
+var inp=document.getElementById('chatIn');var t=inp.value.trim();if(!t)return;
+socket.emit("sendMessage", {
+  userId: ST.u.id,
+  text: t,
+  channel: ST.ch,
+  time: time
+});
+inp.value='';renderChat();addXP(5);
+socket.on("newMessage", () => {
+  renderChat();
+});
+/* Update dashboard msg count */
+var mc=0;for(var k in msgs)mc+=msgs[k].length;document.getElementById('sMsg').textContent=mc}
+
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+/* ============ KNOWLEDGE ============ */
+function renderK(){
+var items=gK();var s=(document.getElementById('kSearch')?document.getElementById('kSearch').value:'').toLowerCase();
+if(s)items=items.filter(function(it){return it.title.toLowerCase().indexOf(s)!==-1||it.desc.toLowerCase().indexOf(s)!==-1});
+var users=gU();var h='';
+for(var i=0;i<items.length;i++){var it=items[i];var an='?',ac='#555';
+for(var j=0;j<users.length;j++){if(users[j].id===it.aid){an=users[j].name;ac=users[j].color;break}}
+var tags='';for(var j=0;j<it.tags.length;j++)tags+='<span class="stag">'+it.tags[j]+'</span>';
+h+='<div class="k-item" onclick="showK('+it.id+')"><div style="display:flex;align-items:start;gap:12px"><div style="width:32px;height:32px;border-radius:6px;background:var(--accent)0d;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-solid fa-file" style="color:var(--accent);font-size:13px"></i></div>';
+h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+it.title+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+it.desc+'</div>';
+h+='<div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap"><span style="font-size:10px;color:'+ac+'">'+an+'</span><span style="font-size:10px;color:var(--muted)">'+it.time+'</span>'+tags+'</div></div></div></div>'}
+if(!h)h='<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Empty. Upload something!</div>';
+document.getElementById('kList').innerHTML=h}
+
+function showK(id){var items=gK();var it=null;for(var i=0;i<items.length;i++){if(items[i].id===id){it=items[i];break}}if(!it)return;
+var users=gU();var an='?';for(var j=0;j<users.length;j++){if(users[j].id===it.aid){an=users[j].name;break}}
+var tags='';for(var j=0;j<it.tags.length;j++)tags+='<span class="stag">'+it.tags[j]+'</span>';
+var o=document.createElement('div');o.className='modal-o';o.onclick=function(e){if(e.target===o)o.remove()};
+o.innerHTML='<div class="modal-b"><div style="display:flex;justify-content:space-between;margin-bottom:14px"><div><div style="font-size:16px;font-weight:700">'+it.title+'</div><div style="font-size:11px;color:var(--muted);margin-top:4px">By '+an+' \u2014 '+it.time+'</div></div><i class="fa-solid fa-xmark" style="cursor:pointer;color:var(--muted)" onclick="this.closest(\'.modal-o\').remove()"></i></div><p style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:14px">'+it.desc+'</p><div style="display:flex;gap:5px;flex-wrap:wrap">'+tags+'</div></div>';
+document.body.appendChild(o)}
+
+function showUpload(){document.getElementById('upModal').style.display='flex'}
+function doUpload(){
+var t=document.getElementById('upTitle').value.trim();if(!t){toast('Enter a title','err');return}
+var d=document.getElementById('upDesc').value.trim()||'No description';var items=gK();
+items.unshift({id:Date.now(),title:t,desc:d,tags:['uploaded'],aid:ST.u.id,time:'Just now'});
+sK(items);renderK();document.getElementById('upModal').style.display='none';document.getElementById('upTitle').value='';document.getElementById('upDesc').value='';addXP(15);toast('Uploaded!','ok')}
+
+/* ============ EVENTS ============ */
+function renderEv(){
+var tc={hackathon:'var(--danger)',cp:'var(--accent)',tech:'var(--accent2)'};var tl={hackathon:'HACKATHON',cp:'CONTEST',tech:'TECH'};var h='';
+for(var i=0;i<currentEvents.length;i++){var e=currentEvents[i];var c=tc[e.type],l=tl[e.type];
+var tags='';for(var j=0;j<e.tags.length;j++)tags+='<span class="stag">'+e.tags[j]+'</span>';
+h+='<div class="ev-card"><div class="ev-img" style="background-image:url(\''+e.img+'\')">';
+h+='<div style="position:absolute;top:8px;left:8px;z-index:1"><span class="badge" style="background:'+c+'18;color:'+c+';border:1px solid '+c+'30;font-size:9px">'+l+'</span></div>';
+h+='<div style="position:absolute;top:8px;right:8px;z-index:1"><span class="b-g" style="font-size:9px">'+e.rel+'% match</span></div></div>';
+h+='<div style="padding:14px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+e.title+'</div>';
+h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px">'+e.desc+'</div>';
+h+='<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
+h+='<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim)"><i class="fa-regular fa-calendar" style="color:var(--muted);width:12px;font-size:10px"></i>'+e.date+'</div>';
+h+='<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim)"><i class="fa-solid fa-location-dot" style="color:var(--muted);width:12px;font-size:10px"></i>'+e.loc+(e.dist!=='--'?' \u2014 '+e.dist:'')+'</div></div>';
+h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px">'+tags+'</div>';
+h+='<button style="width:100%;padding:9px;background:rgba(255,214,0,0.06);border:1px solid var(--border2);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;border-radius:6px;font-family:inherit" onclick="toast(\'Registration opened for '+e.title.replace(/'/g,"\\'")+'\',\'ok\')">Register</button></div></div>'}
+document.getElementById('evList').innerHTML=h;
+var ago=Math.round((Date.now()-lastRefresh)/60000);document.getElementById('evTime').textContent='Updated '+ago+'m ago'}
+
+function refreshEvents(){
+var icon=document.getElementById('refIcon');icon.classList.add('refresh-spin');
+setTimeout(function(){buildEvents();renderEv();icon.classList.remove('refresh-spin');toast('Events refreshed — '+currentEvents.length+' found','ok')},800)}
+
+/* Auto-refresh events every 5 minutes */
+setInterval(function(){if(ST.u&&ST.pg==='events'){buildEvents();renderEv()}},300000);
+/* Update "updated X min ago" every 30s */
+setInterval(function(){if(ST.u&&ST.pg==='events'){var ago=Math.round((Date.now()-lastRefresh)/60000);document.getElementById('evTime').textContent='Updated '+ago+'m ago'}},30000);
+
+/* ============ AI ============ */
+function renderAI(){document.getElementById('aiMsgs').innerHTML='<div class="chat-b them" style="max-width:85%"><div style="font-size:13px;line-height:1.6">Hey <strong style="color:'+ST.u.color+'">'+esc(ST.u.name)+'</strong>, I\'m your MHSD AI. Ask me for coding challenges, learning paths, or anything technical.</div></div>'}
+function sendAI(){var inp=document.getElementById('aiIn');var t=inp.value.trim();if(!t)return;var con=document.getElementById('aiMsgs');
+con.innerHTML+='<div class="chat-b me" style="max-width:72%">'+esc(t)+'</div>';inp.value='';con.scrollTop=con.scrollHeight;
+var tid='t'+Date.now();con.innerHTML+='<div class="chat-b them" id="'+tid+'" style="max-width:85%">Thinking<span class="typing-c"></span></div>';con.scrollTop=con.scrollHeight;
+setTimeout(function(){var el=document.getElementById(tid);if(el)el.innerHTML='<div style="font-size:13px;line-height:1.6">'+genAI(t)+'</div>';con.scrollTop=con.scrollHeight;addXP(3)},800+Math.random()*800)}
+function aiQ(t){document.getElementById('aiIn').value=t;sendAI()}
+
+function genAI(t){
+var lo=t.toLowerCase(),u=ST.u;
+if(lo.indexOf('challenge')!==-1){var ch=['<strong>Challenge:</strong> Implement a function to find the longest palindromic substring. O(n) with Manacher\'s algorithm. Test: "babad" \u2192 "bab".','<strong>Challenge:</strong> Build a minimal pub/sub system with subscribe, publish, unsubscribe. Support wildcard events. Keep it under 50 lines.','<strong>Challenge:</strong> Implement an LRU cache with O(1) get/put. Use hashmap + doubly linked list. Then try it in a second language.'];return ch[Math.floor(Math.random()*ch.length)]}
+if(lo.indexOf('learning')!==-1){return '<strong>Your Path:</strong><br>Week 1-2: Core fundamentals, solve 5 daily problems<br>Week 3-4: Build a small project with a framework<br>Week 5-6: Learn system design basics<br>Week 7-8: Contribute to open source or join a hackathon'+(u.skills.length?'<br><br>Based on your skills in '+u.skills.slice(0,3).join(', ')+', I suggest focusing on building real projects.':'')}
+if(lo.indexOf('progress')!==-1){var users=gU();return '<strong>Your Stats:</strong><br>Level: '+u.level+' ('+u.xp+' XP)<br>Skills: '+u.skills.length+'<br>Network: '+users.length+' members<br>Knowledge items: '+gK().length+'<br><br>'+(u.xp<100?'Start chatting and uploading to earn XP!':'Good progress! Keep going for level '+(u.level+1)+'.')}
+var g=["Interesting question. I'd break it into smaller parts and tackle each one. What specific aspect interests you?","Good thinking! Check the Knowledge Hub for related resources from other members.","Based on your profile"+(u.skills.length?' ('+u.skills[0]+')':'')+", I'd suggest starting with fundamentals before jumping to advanced topics.","Great topic for the network! Try posting in #general for diverse perspectives from other members."];return g[Math.floor(Math.random()*g.length)]}
+
+/* ============ ACTIVITY ============ */
+function renderAct(){
+var users=gU(),msgs=gM(),know=gK(),acts=[];
+for(var ch in msgs){var cm=msgs[ch];for(var i=Math.max(0,cm.length-2);i<cm.length;i++){var m=cm[i];var an='?',ac='#555';for(var j=0;j<users.length;j++){if(users[j].id===m.uid){an=users[j].name;ac=users[j].color;break}}acts.push({n:an,c:ac,a:'posted in #'+ch,t:m.text.slice(0,40)+(m.text.length>40?'...':''),time:m.time,ic:'fa-message'})}}
+for(var i=0;i<Math.min(3,know.length);i++){var it=know[i];var an='?';var ac='#555';for(var j=0;j<users.length;j++){if(users[j].id===it.aid){an=users[j].name;ac=users[j].color;break}}acts.push({n:an,c:ac,a:'uploaded',t:it.title,time:it.time,ic:'fa-upload'})}
+for(var i=0;i<users.length;i++){if(Date.now()-users[i].at<86400000&&users[i].id!==ST.u.id&&users[i].done)acts.push({n:users[i].name,c:users[i].color,a:'joined MHSD',t:'',time:'Today',ic:'fa-user-plus'})}
+acts.reverse();if(acts.length>12)acts.length=12;var h='';
+for(var i=0;i<acts.length;i++){var a=acts[i];h+='<div style="display:flex;align-items:start;gap:10px"><div style="width:24px;height:24px;border-radius:50%;background:'+a.c+'15;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><i class="fa-solid '+a.ic+'" style="font-size:10px;color:'+a.c+'"></i></div>';h+='<div style="flex:1;min-width:0"><div style="font-size:12px"><strong style="color:'+a.c+'">'+a.n+'</strong> <span style="color:var(--muted)">'+a.a+'</span>'+(a.t?' <span style="color:var(--dim)">'+a.t+'</span>':'')+'</div><div style="font-size:10px;color:var(--muted);margin-top:1px">'+a.time+'</div></div></div>'}
+if(!h)h='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No activity yet</div>';
+document.getElementById('actFeed').innerHTML=h}
+
+function renderAIIns(){
+var users=gU(),u=ST.u,ins=[];
+if(users.length<=1)ins.push('Your network is empty. Go to <strong style="color:var(--accent)">Admin Panel</strong> and invite friends!');
+else{var others=users.filter(function(x){return x.id!==u.id&&x.done});if(others.length){var f=others[Math.floor(Math.random()*others.length)];ins.push('<strong style="color:'+f.color+'">'+f.name+'</strong> is also in the network. Start a conversation in #general!')}
+ins.push('Network has <strong style="color:var(--accent)">'+users.length+' members</strong> with a total of <strong>'+users.reduce(function(s,x){return s+x.xp},0)+' XP</strong>.')}
+document.getElementById('aiIns').innerHTML=ins[Math.floor(Math.random()*ins.length)]}
+
+/* ============ NETWORK ============ */
+function renderNet(){
+var users=gU();var h='';
+for(var i=0;i<users.length;i++){var u=users[i];if(!u.done)continue;if(u.id===ST.u.id)continue;
+var sk='';for(var j=0;j<u.skills.length;j++)sk+='<span class="stag">'+u.skills[j]+'</span>';if(!u.skills.length)sk='<span style="font-size:11px;color:var(--muted)">No skills listed</span>';
+var pct=Math.min(100,(u.xp/(u.level*200))*100);
+h+='<div class="mem-c"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><div class="avatar avatar-lg" style="background:'+u.color+'1a;color:'+u.color+'">'+u.name.charAt(0).toUpperCase()+'</div><div style="flex:1"><div style="font-size:14px;font-weight:700">'+u.name+'</div><div style="font-size:11px;color:var(--muted)">Level '+u.level+' \u2014 '+u.xp+' XP</div></div></div>';
+h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">'+sk+'</div>';
+h+='<div class="pbar" style="margin-bottom:4px"><div class="pfill" style="width:'+pct+'%;background:'+u.color+'"></div></div><div style="font-size:10px;color:var(--muted)">'+u.xp+' / '+(u.level*200)+' XP</div></div>'}
+if(!h)h='<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;grid-column:1/-1">No other members yet. Invite friends from Admin Panel!</div>';
+document.getElementById('memGrid').innerHTML=h}
+
+/* ============ ADMIN ============ */
+function genInvite(){
+var un=document.getElementById('invUser').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+if(!un){toast('Enter a valid username','err');return}if(un==='admin'){toast('Cannot use admin','err');return}
+var users=gU();for(var i=0;i<users.length;i++){if(users[i].username===un){toast('"'+un+'" taken','err');return}}
+var inv=gI();for(var i=0;i<inv.length;i++){if(inv[i].username===un){toast('Invite exists for "'+un+'"','err');return}}
+var ch='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',code='M-';for(var i=0;i<6;i++)code+=ch.charAt(Math.floor(Math.random()*ch.length));
+inv.push({username:un,code:code,at:Date.now()});sI(inv);document.getElementById('invUser').value='';aL('INFO','Invite: '+un+' / '+code);renderAdm();toast('Invite created for "'+un+'"','ok')}
+
+function copyCode(c){navigator.clipboard.writeText(c).then(function(){toast('Copied!','ok')}).catch(function(){toast('Code: '+c,'inf')})}
+function revokeInv(i){var inv=gI();var n=inv[i].username;inv.splice(i,1);sI(inv);aL('WARN','Revoked invite: '+n);renderAdm();toast('Revoked','inf')}
+function removeMem(i){var users=gU();var u=users[i];if(u.role==='admin'){toast('Cannot remove admin','err');return}var n=u.name;users.splice(i,1);sU(users);aL('WARN','Removed: '+n);renderAdm();toast(n+' removed','inf')}
+
+function renderAdm(){
+if(!ST.u||ST.u.role!=='admin')return;
+var inv=gI(),h='';
+for(var i=0;i<inv.length;i++){var v=inv[i];
+h+='<div class="inv-card"><div style="font-size:13px;font-weight:600">@'+v.username+'</div>';
+h+='<div class="mono" style="font-size:18px;font-weight:700;color:var(--accent);letter-spacing:3px;margin:6px 0">'+v.code+'</div>';
+h+='<div style="font-size:10px;color:var(--muted);margin-bottom:8px">Share username + code with your friend</div>';
+h+='<div style="display:flex;gap:6px"><button style="padding:4px 12px;font-size:10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-weight:600" onclick="copyCode(\''+v.code+'\')">Copy</button>';
+h+='<button style="padding:4px 12px;font-size:10px;background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.2);color:var(--danger);cursor:pointer;border-radius:4px;font-family:inherit" onclick="revokeInv('+i+')">Revoke</button></div></div>'}
+if(!inv.length)h='<div style="font-size:12px;color:var(--muted);padding:6px 0">No pending invites</div>';
+document.getElementById('invList').innerHTML=h;
+
+var users=gU(),mh='';
+for(var i=0;i<users.length;i++){var u=users[i];
+mh+='<div style="display:flex;align-items:center;gap:10px;padding:10px 0;'+(i<users.length-1?'border-bottom:1px solid var(--border)':'')+'">';
+mh+='<div class="avatar" style="background:'+(u.color||'#555')+'1a;color:'+(u.color||'#555')+'">'+(u.name.charAt(0)||'?').toUpperCase()+'</div>';
+mh+='<div style="flex:1"><div style="font-size:12px;font-weight:600">'+u.name+' <span style="color:var(--muted);font-weight:400">@'+u.username+'</span>'+(u.role==='admin'?' <span class="b-y" style="font-size:9px">ADMIN</span>':'')+'</div>';
+mh+='<div style="font-size:10px;color:var(--muted)">Level '+u.level+'</div></div>';
+if(u.role!=='admin')mh+='<button style="padding:5px 12px;font-size:10px;background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.2);color:var(--danger);cursor:pointer;border-radius:4px;font-family:inherit" onclick="removeMem('+i+')">Remove</button>';
+mh+='</div>'}
+document.getElementById('admMem').innerHTML=mh;
+
+var log=gL(),lh='';
+for(var i=0;i<log.length;i++){var l=log[i],c=l.lv==='WARN'?'var(--accent2)':'var(--muted)';
+lh+='<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,214,0,0.03)"><span style="color:var(--muted);white-space:nowrap">['+l.t+']</span><span style="color:'+c+';font-weight:600;white-space:nowrap">['+l.lv+']</span><span style="color:var(--dim)">'+l.m+'</span></div>'}
+if(!lh)lh='<div style="color:var(--muted)">No logs</div>';
+document.getElementById('secLog').innerHTML=lh}
+
+/* ============ TOAST ============ */
+function toast(m,t){t=t||'inf';var c=document.getElementById('toastC');var d=document.createElement('div');d.className='toast '+t;
+var ic=t==='ok'?'fa-circle-check':t==='err'?'fa-circle-exclamation':'fa-circle-info';
+d.innerHTML='<div style="display:flex;align-items:center;gap:8px"><i class="fa-solid '+ic+'"></i><span>'+m+'</span></div>';c.appendChild(d);
+setTimeout(function(){d.style.animation='tout .25s ease forwards';setTimeout(function(){d.remove()},250)},3000)}
+
+/* ============ BG ============ */
+var cv=document.getElementById('bgCanvas'),cx=cv.getContext('2d'),mx=0,my=0;
+function rsz(){cv.width=innerWidth;cv.height=innerHeight}rsz();
+addEventListener('resize',rsz);addEventListener('mousemove',function(e){mx=e.clientX;my=e.clientY});
+var dots=[],G=50;
+function idot(){dots=[];for(var x=0;x<cv.width+G;x+=G)for(var y=0;y<cv.height+G;y+=G)dots.push({x:x,y:y,a:0.04+Math.random()*0.04,p:Math.random()*6.28})}idot();addEventListener('resize',idot);
+function abg(t){
+cx.clearRect(0,0,cv.width,cv.height);var s=t*0.0008;
+for(var i=0;i<dots.length;i++){var d=dots[i],dx=mx-d.x,dy=my-d.y,dist=Math.sqrt(dx*dx+dy*dy),pr=Math.max(0,1-dist/200),w=Math.sin(s+d.p)*0.02,al=Math.min(0.2,d.a+pr*0.15+w),sz=0.8+pr*1.2;
+cx.fillStyle='rgba(255,214,0,'+al+')';cx.fillRect(d.x-sz/2,d.y-sz/2,sz,sz)}
+cx.strokeStyle='rgba(255,214,0,0.012)';cx.lineWidth=0.5;
+for(var x=0;x<cv.width;x+=G){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,cv.height);cx.stroke()}
+for(var y=0;y<cv.height;y+=G){cx.beginPath();cx.moveTo(0,y);cx.lineTo(cv.width,y);cx.stroke()}
+requestAnimationFrame(abg)}requestAnimationFrame(abg);
+
+if(!gL().length){aL('INFO','MHSD network initialized');aL('INFO','Admin account created')}
+</script>
+</body>
+</html>
